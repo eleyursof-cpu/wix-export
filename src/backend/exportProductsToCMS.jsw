@@ -1,0 +1,58 @@
+import { products } from 'wix-stores-backend';
+import wixData from 'wix-data';
+
+export async function exportProductsToCMS() {
+  try {
+    console.log("🚀 Начало экспорта");
+
+    let allProducts = [];
+    let skip = 0;
+    let hasMore = true;
+
+    // цикл выгрузки товаров из Wix Stores
+    while (hasMore) {
+      const result = await products.queryProducts()
+        .limit(50)
+        .skip(skip)
+        .find();
+
+      console.log("➡️ Получено товаров:", result.items.length);
+
+      allProducts = allProducts.concat(result.items);
+      hasMore = result.hasNext();
+      skip += 50;
+    }
+
+    console.log("✅ Цикл завершён, всего товаров:", allProducts.length);
+
+    // форматируем товары под коллекцию ExportProducts
+    const formatted = allProducts.map(p => ({
+      name_ro: p.name || "",
+      slug: p.slug || "",
+      sku: p.sku || "",
+      price: p.price?.price || 0,
+      discountedPrice: p.price?.discountedPrice || "",
+      currency: p.price?.currency || "",
+      description_ro: p.description || "",
+      seoTitle_ro: p.seo?.title || "",
+      seoDescription_ro: p.seo?.description || "",
+      seoKeywords_ro: (p.seo?.keywords || []).join(", "),
+      mainImage: p.mainMedia?.src || "",
+      lastUpdated: new Date()
+    }));
+
+    console.log("🛠 Форматирование завершено:", formatted.length);
+
+    // записываем в CMS коллекцию ExportProducts
+    for (let item of formatted) {
+      await wixData.insert("ExportProducts", item);
+    }
+
+    console.log("✅ Все товары вставлены");
+    return { success: true, count: formatted.length };
+
+  } catch (err) {
+    console.error("❌ Ошибка экспорта:", err);
+    return { success: false, error: err.message };
+  }
+}
